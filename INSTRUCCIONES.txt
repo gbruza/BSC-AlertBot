@@ -1,0 +1,57 @@
+=== DEPLOY EN RENDER.COM ===
+
+1. CREAR BASE DE DATOS POSTGRESQL EN RENDER
+   - Anda a https://dashboard.render.com/
+   - New + -> PostgreSQL
+   - Name: bsc-alertbot-db
+   - Plan: Free
+   - Click "Create Database"
+   - Copia el "Internal Database URL" (postgresql://...)
+
+2. SUBIR ESTOS ARCHIVOS A TU REPO DE GITHUB
+   Reemplaza estos archivos en tu proyecto:
+   - requirements.txt  (agrega psycopg2-binary, gunicorn, eventlet)
+   - Procfile          (comando de inicio para Render)
+   - render.yaml       (configuracion Blueprint de Render)
+
+   Desde PowerShell:
+   cd C:\Users\Gustavo Berrios\proyectos\BSC-AlertBotPro
+   git add requirements.txt Procfile render.yaml
+   git commit -m "Agrega config para deploy en Render con PostgreSQL"
+   git push origin main
+
+3. CAMBIAR UNA LINEA EN backend/app.py
+   En la linea donde dice:
+       socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
+   Cambiala a:
+       socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
+
+   Esto es necesario para que WebSocket funcione en produccion con gunicorn.
+
+   git add backend/app.py
+   git commit -m "Cambia async_mode a eventlet para produccion"
+   git push origin main
+
+4. CREAR WEB SERVICE EN RENDER
+   - New + -> Web Service
+   - Conecta tu repo gbruza/BSC-AlertBot
+   - Render va a detectar el render.yaml automaticamente
+   - Si no, configura manualmente:
+       * Runtime: Python 3
+       * Build Command: pip install -r requirements.txt
+       * Start Command: gunicorn -k eventlet -w 1 "backend.app:create_app()"
+   - En Environment Variables agrega:
+       * DATABASE_URL = postgresql://... (la URL del paso 1)
+       * SECRET_KEY = cualquier string largo y random
+   - Click "Create Web Service"
+
+5. LISTO
+   Render va a buildear y deployar automaticamente.
+   Cada vez que hagas push a main, se redeploya.
+
+=== NOTAS ===
+- El plan gratis de Render se apaga despues de 15 min de inactividad
+  y tarda ~30 segundos en despertar cuando alguien entra.
+- La DB gratis tiene 1GB de storage.
+- Si usas WebSocket, a veces el plan gratis puede tener limitaciones
+  de conexiones persistentes.
